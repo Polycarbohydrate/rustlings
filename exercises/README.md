@@ -1,7 +1,7 @@
 # Exercise to Book Chapter mapping
 
 | Exercise               | Book Chapter        |
-| ---------------------- | ------------------- |
+|------------------------|---------------------|
 | variables              | §3.1                |
 | functions              | §3.3                |
 | if                     | §3.5                |
@@ -22,6 +22,7 @@
 | iterators              | §13.2-4             |
 | smart_pointers         | §15, §16.3          |
 | threads                | §16.1-3             |
+| async                  | §17.1               |
 | macros                 | §19.5               |
 | clippy                 | §21.4               |
 | conversions            | n/a                 |
