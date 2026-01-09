@@ -118,8 +118,8 @@ impl<'a> ListState<'a> {
     }
 
     fn draw_exercise_name(&self, writer: &mut MaxLenWriter, exercise: &Exercise) -> io::Result<()> {
-        if !self.search_query.is_empty() {
-            if let Some((pre_highlight, highlight, post_highlight)) = exercise
+        if !self.search_query.is_empty()
+            && let Some((pre_highlight, highlight, post_highlight)) = exercise
                 .name
                 .find(&self.search_query)
                 .and_then(|ind| exercise.name.split_at_checked(ind))
@@ -127,13 +127,12 @@ impl<'a> ListState<'a> {
                     rest.split_at_checked(self.search_query.len())
                         .map(|x| (pre_highlight, x.0, x.1))
                 })
-            {
-                writer.write_str(pre_highlight)?;
-                writer.stdout.queue(SetForegroundColor(Color::Magenta))?;
-                writer.write_str(highlight)?;
-                writer.stdout.queue(SetForegroundColor(Color::Reset))?;
-                return writer.write_str(post_highlight);
-            }
+        {
+            writer.write_str(pre_highlight)?;
+            writer.stdout.queue(SetForegroundColor(Color::Magenta))?;
+            writer.write_str(highlight)?;
+            writer.stdout.queue(SetForegroundColor(Color::Reset))?;
+            return writer.write_str(post_highlight);
         }
 
         writer.write_str(exercise.name)
@@ -186,13 +185,7 @@ impl<'a> ListState<'a> {
 
             writer.write_ascii(&self.name_col_padding[exercise.name.len()..])?;
 
-            // The list links aren't shown correctly in VS Code on Windows.
-            // But VS Code shows its own links anyway.
-            if self.app_state.vs_code() {
-                writer.write_str(exercise.path)?;
-            } else {
-                exercise.terminal_file_link(&mut writer)?;
-            }
+            exercise.terminal_file_link(&mut writer, self.app_state.emit_file_links())?;
 
             writer.write_ascii(&self.path_col_padding[exercise.path.len()..])?;
 

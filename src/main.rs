@@ -58,7 +58,7 @@ enum Subcommands {
         /// The name of the exercise
         name: Option<String>,
     },
-    /// Commands for developing (third-party) Rustlings exercises
+    /// Commands for developing (community) Rustlings exercises
     #[command(subcommand)]
     Dev(DevCommands),
 }
@@ -104,7 +104,11 @@ fn main() -> Result<ExitCode> {
                 clear_terminal(&mut stdout)?;
 
                 let welcome_message = welcome_message.trim_ascii();
-                write!(stdout, "{welcome_message}\n\nPress ENTER to continue ")?;
+                write!(
+                    stdout,
+                    "{welcome_message}\n\n\
+                     Press ENTER to continue "
+                )?;
                 press_enter_prompt(&mut stdout)?;
                 clear_terminal(&mut stdout)?;
                 // Flush to be able to show errors occurring before printing a newline to stdout.
@@ -163,7 +167,7 @@ fn main() -> Result<ExitCode> {
                 }
                 app_state
                     .current_exercise()
-                    .terminal_file_link(&mut stdout)?;
+                    .terminal_file_link(&mut stdout, app_state.emit_file_links())?;
                 stdout.write_all(b"\n")?;
 
                 return Ok(ExitCode::FAILURE);

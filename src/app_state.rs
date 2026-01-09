@@ -60,8 +60,7 @@ pub struct AppState {
     file_buf: Vec<u8>,
     official_exercises: bool,
     cmd_runner: CmdRunner,
-    // Running in VS Code.
-    vs_code: bool,
+    emit_file_links: bool,
 }
 
 impl AppState {
@@ -181,7 +180,8 @@ impl AppState {
             file_buf,
             official_exercises: !Path::new("info.toml").exists(),
             cmd_runner,
-            vs_code: env::var_os("TERM_PROGRAM").is_some_and(|v| v == "vscode"),
+            // VS Code has its own file link handling
+            emit_file_links: env::var_os("TERM_PROGRAM").is_none_or(|v| v != "vscode"),
         };
 
         Ok((slf, state_file_status))
@@ -218,8 +218,8 @@ impl AppState {
     }
 
     #[inline]
-    pub fn vs_code(&self) -> bool {
-        self.vs_code
+    pub fn emit_file_links(&self) -> bool {
+        self.emit_file_links
     }
 
     // Write the state file.
@@ -315,7 +315,7 @@ impl AppState {
     }
 
     // Official exercises: Dump the original file from the binary.
-    // Third-party exercises: Reset the exercise file with `git stash`.
+    // Community exercises: Reset the exercise file with `git stash`.
     fn reset(&self, exercise_ind: usize, path: &str) -> Result<()> {
         if self.official_exercises {
             return EMBEDDED_FILES
@@ -385,7 +385,7 @@ impl AppState {
     }
 
     /// Official exercises: Dump the solution file from the binary and return its path.
-    /// Third-party exercises: Check if a solution file exists and return its path in that case.
+    /// Community exercises: Check if a solution file exists and return its path in that case.
     pub fn current_solution_path(&self) -> Result<Option<String>> {
         if cfg!(debug_assertions) {
             return Ok(None);
@@ -621,7 +621,7 @@ mod tests {
             file_buf: Vec::new(),
             official_exercises: true,
             cmd_runner: CmdRunner::build().unwrap(),
-            vs_code: false,
+            emit_file_links: true,
         };
 
         let mut assert = |done: [bool; 3], expected: [Option<usize>; 3]| {

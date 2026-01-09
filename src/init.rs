@@ -35,7 +35,27 @@ pub fn init() -> Result<()> {
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
-        .context(CARGO_LOCATE_PROJECT_ERR)?;
+        .context(
+            "Failed to run the command `cargo locate-project …`\n\
+             Did you already install Rust?\n\
+             Try running `cargo --version` to diagnose the problem.",
+        )?;
+
+    if !Command::new("cargo")
+        .arg("clippy")
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .context("Failed to run the command `cargo clippy --version`")?
+        .success()
+    {
+        bail!(
+            "Clippy, the official Rust linter, is missing.\n\
+             Please install it first before initializing Rustlings."
+        )
+    }
 
     let mut stdout = io::stdout().lock();
     let mut init_git = true;
@@ -54,15 +74,17 @@ pub fn init() -> Result<()> {
 
         let workspace_manifest_content = fs::read_to_string(&workspace_manifest)
             .with_context(|| format!("Failed to read the file {}", workspace_manifest.display()))?;
-        if !workspace_manifest_content.contains("[workspace]\n")
+        if !workspace_manifest_content.contains("[workspace]")
             && !workspace_manifest_content.contains("workspace.")
         {
             bail!(
-                "The current directory is already part of a Cargo project.\nPlease initialize Rustlings in a different directory"
+                "The current directory is already part of a Cargo project.\n\
+                 Please initialize Rustlings in a different directory"
             );
         }
 
-        stdout.write_all(b"This command will create the directory `rustlings/` as a member of this Cargo workspace.\nPress ENTER to continue ")?;
+        stdout.write_all(b"This command will create the directory `rustlings/` as a member of this Cargo workspace.\n\
+                           Press ENTER to continue ")?;
         press_enter_prompt(&mut stdout)?;
 
         // Make sure "rustlings" is added to `workspace.members` by making
@@ -78,7 +100,8 @@ pub fn init() -> Result<()> {
             .status()?;
         if !status.success() {
             bail!(
-                "Failed to initialize a new Cargo workspace member.\nPlease initialize Rustlings in a different directory"
+                "Failed to initialize a new Cargo workspace member.\n\
+                 Please initialize Rustlings in a different directory"
             );
         }
 
@@ -87,7 +110,8 @@ pub fn init() -> Result<()> {
             .context("Failed to remove the temporary directory `rustlings/`")?;
         init_git = false;
     } else {
-        stdout.write_all(b"This command will create the directory `rustlings/` which will contain the exercises.\nPress ENTER to continue ")?;
+        stdout.write_all(b"This command will create the directory `rustlings/` which will contain the exercises.\n\
+                           Press ENTER to continue ")?;
         press_enter_prompt(&mut stdout)?;
     }
 
@@ -166,10 +190,6 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
-const CARGO_LOCATE_PROJECT_ERR: &str = "Failed to run the command `cargo locate-project …`
-Did you already install Rust?
-Try running `cargo --version` to diagnose the problem.";
-
 const INIT_SOLUTION_FILE: &[u8] = b"fn main() {
     // DON'T EDIT THIS SOLUTION FILE!
     // It will be automatically filled after you finish the exercise.
@@ -178,6 +198,7 @@ const INIT_SOLUTION_FILE: &[u8] = b"fn main() {
 
 pub const RUST_ANALYZER_TOML: &[u8] = br#"check.command = "clippy"
 check.extraArgs = ["--profile", "test"]
+cargo.targetDir = true
 "#;
 
 const GITIGNORE: &[u8] = b"Cargo.lock

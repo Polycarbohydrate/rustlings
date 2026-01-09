@@ -7,22 +7,28 @@ use std::io::{self, StdoutLock, Write};
 
 use crate::{
     cmd::CmdRunner,
-    term::{self, CountedWrite, terminal_file_link, write_ansi},
+    term::{self, CountedWrite, file_path, terminal_file_link, write_ansi},
 };
 
 /// The initial capacity of the output buffer.
 pub const OUTPUT_CAPACITY: usize = 1 << 14;
 
-pub fn solution_link_line(stdout: &mut StdoutLock, solution_path: &str) -> io::Result<()> {
+pub fn solution_link_line(
+    stdout: &mut StdoutLock,
+    solution_path: &str,
+    emit_file_links: bool,
+) -> io::Result<()> {
     stdout.queue(SetAttribute(Attribute::Bold))?;
     stdout.write_all(b"Solution")?;
     stdout.queue(ResetColor)?;
     stdout.write_all(b" for comparison: ")?;
-    if let Some(canonical_path) = term::canonicalize(solution_path) {
-        terminal_file_link(stdout, solution_path, &canonical_path, Color::Cyan)?;
-    } else {
-        stdout.write_all(solution_path.as_bytes())?;
-    }
+    file_path(stdout, Color::Cyan, |writer| {
+        if emit_file_links && let Some(canonical_path) = term::canonicalize(solution_path) {
+            terminal_file_link(writer, solution_path, &canonical_path)
+        } else {
+            writer.stdout().write_all(solution_path.as_bytes())
+        }
+    })?;
     stdout.write_all(b"\n")
 }
 
@@ -42,17 +48,17 @@ fn run_bin(
 
     let success = cmd_runner.run_debug_bin(bin_name, output.as_deref_mut())?;
 
-    if let Some(output) = output {
-        if !success {
-            // This output is important to show the user that something went wrong.
-            // Otherwise, calling something like `exit(1)` in an exercise without further output
-            // leaves the user confused about why the exercise isn't done yet.
-            write_ansi(output, SetAttribute(Attribute::Bold));
-            write_ansi(output, SetForegroundColor(Color::Red));
-            output.extend_from_slice(b"The exercise didn't run successfully (nonzero exit code)");
-            write_ansi(output, ResetColor);
-            output.push(b'\n');
-        }
+    if let Some(output) = output
+        && !success
+    {
+        // This output is important to show the user that something went wrong.
+        // Otherwise, calling something like `exit(1)` in an exercise without further output
+        // leaves the user confused about why the exercise isn't done yet.
+        write_ansi(output, SetAttribute(Attribute::Bold));
+        write_ansi(output, SetForegroundColor(Color::Red));
+        output.extend_from_slice(b"The exercise didn't run successfully (nonzero exit code)");
+        write_ansi(output, ResetColor);
+        output.push(b'\n');
     }
 
     Ok(success)
@@ -72,12 +78,18 @@ pub struct Exercise {
 }
 
 impl Exercise {
-    pub fn terminal_file_link<'a>(&self, writer: &mut impl CountedWrite<'a>) -> io::Result<()> {
-        if let Some(canonical_path) = self.canonical_path.as_deref() {
-            return terminal_file_link(writer, self.path, canonical_path, Color::Blue);
-        }
-
-        writer.write_str(self.path)
+    pub fn terminal_file_link<'a>(
+        &self,
+        writer: &mut impl CountedWrite<'a>,
+        emit_file_links: bool,
+    ) -> io::Result<()> {
+        file_path(writer, Color::Blue, |writer| {
+            if emit_file_links && let Some(canonical_path) = self.canonical_path.as_deref() {
+                terminal_file_link(writer, self.path, canonical_path)
+            } else {
+                writer.write_str(self.path)
+            }
+        })
     }
 }
 

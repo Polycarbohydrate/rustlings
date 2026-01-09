@@ -318,16 +318,7 @@ of the Rust book to learn more."""
 name = "vecs2"
 dir = "05_vecs"
 hint = """
-In the first function, we create an empty vector and want to push new elements
-to it.
-
-In the second function, we map the values of the input and collect them into
-a vector.
-
-After you've completed both functions, decide for yourself which approach you
-like better.
-
-What do you think is the more commonly used pattern under Rust developers?"""
+Use the `.push()` method on the vector to push new elements to it."""
 
 # MOVE SEMANTICS
 
@@ -764,7 +755,7 @@ Notice how the trait takes ownership of `self` and returns `Self`.
 
 Although the signature of `append_bar` in the trait takes `self` as argument,
 the implementation can take `mut self` instead. This is possible because the
-the value is owned anyway."""
+value is owned anyway."""
 
 [[exercises]]
 name = "traits3"

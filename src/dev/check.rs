@@ -15,6 +15,7 @@ use crate::{
     cmd::CmdRunner,
     exercise::{OUTPUT_CAPACITY, RunnableExercise},
     info_file::{ExerciseInfo, InfoFile},
+    term::ProgressCounter,
 };
 
 const MAX_N_EXERCISES: usize = 999;
@@ -43,7 +44,7 @@ fn check_cargo_toml(
     if old_bins != new_bins {
         if cfg!(debug_assertions) {
             bail!(
-                "The file `dev/Cargo.toml` is outdated. Run `cargo run -- dev update` to update it. Then run `cargo run -- dev check` again"
+                "The file `dev/Cargo.toml` is outdated. Run `cargo dev update` to update it. Then run `cargo run -- dev check` again"
             );
         }
 
@@ -105,13 +106,15 @@ fn check_info_file_exercises(info_file: &InfoFile) -> Result<HashSet<PathBuf>> {
 
         if !file_buf.contains("fn main()") {
             bail!(
-                "The `main` function is missing in the file `{path}`.\nCreate at least an empty `main` function to avoid language server errors"
+                "The `main` function is missing in the file `{path}`.\n\
+                 Create at least an empty `main` function to avoid language server errors"
             );
         }
 
         if !file_buf.contains("// TODO") {
             bail!(
-                "Didn't find any `// TODO` comment in the file `{path}`.\nYou need to have at least one such comment to guide the user."
+                "Didn't find any `// TODO` comment in the file `{path}`.\n\
+                 You need to have at least one such comment to guide the user."
             );
         }
 
@@ -217,10 +220,7 @@ fn check_exercises_unsolved(
         .collect::<Result<Vec<_>, _>>()
         .context("Failed to spawn a thread to check if an exercise is already solved")?;
 
-    let n_handles = handles.len();
-    write!(stdout, "Progress: 0/{n_handles}")?;
-    stdout.flush()?;
-    let mut handle_num = 1;
+    let mut progress_counter = ProgressCounter::new(&mut stdout, handles.len())?;
 
     for (exercise_name, handle) in handles {
         let Ok(result) = handle.join() else {
@@ -229,17 +229,17 @@ fn check_exercises_unsolved(
 
         match result {
             Ok(true) => {
-                bail!("The exercise {exercise_name} is already solved.\n{SKIP_CHECK_UNSOLVED_HINT}",)
+                bail!(
+                    "The exercise {exercise_name} is already solved.\n\
+                     {SKIP_CHECK_UNSOLVED_HINT}",
+                )
             }
             Ok(false) => (),
             Err(e) => return Err(e),
         }
 
-        write!(stdout, "\rProgress: {handle_num}/{n_handles}")?;
-        stdout.flush()?;
-        handle_num += 1;
+        progress_counter.increment()?;
     }
-    stdout.write_all(b"\n")?;
 
     Ok(())
 }
@@ -247,10 +247,12 @@ fn check_exercises_unsolved(
 fn check_exercises(info_file: &'static InfoFile, cmd_runner: &'static CmdRunner) -> Result<()> {
     match info_file.format_version.cmp(&CURRENT_FORMAT_VERSION) {
         Ordering::Less => bail!(
-            "`format_version` < {CURRENT_FORMAT_VERSION} (supported version)\nPlease migrate to the latest format version"
+            "`format_version` < {CURRENT_FORMAT_VERSION} (supported version)\n\
+             Please migrate to the latest format version"
         ),
         Ordering::Greater => bail!(
-            "`format_version` > {CURRENT_FORMAT_VERSION} (supported version)\nTry updating the Rustlings program"
+            "`format_version` > {CURRENT_FORMAT_VERSION} (supported version)\n\
+             Try updating the Rustlings program"
         ),
         Ordering::Equal => (),
     }
@@ -318,10 +320,7 @@ fn check_solutions(
         .arg("always")
         .stdin(Stdio::null());
 
-    let n_handles = handles.len();
-    write!(stdout, "Progress: 0/{n_handles}")?;
-    stdout.flush()?;
-    let mut handle_num = 1;
+    let mut progress_counter = ProgressCounter::new(&mut stdout, handles.len())?;
 
     for (exercise_info, handle) in info_file.exercises.iter().zip(handles) {
         let Ok(check_result) = handle.join() else {
@@ -338,7 +337,7 @@ fn check_solutions(
             }
             SolutionCheck::MissingOptional => (),
             SolutionCheck::RunFailure { output } => {
-                stdout.write_all(b"\n\n")?;
+                drop(progress_counter);
                 stdout.write_all(&output)?;
                 bail!(
                     "Running the solution of the exercise {} failed with the error above",
@@ -348,22 +347,21 @@ fn check_solutions(
             SolutionCheck::Err(e) => return Err(e),
         }
 
-        write!(stdout, "\rProgress: {handle_num}/{n_handles}")?;
-        stdout.flush()?;
-        handle_num += 1;
+        progress_counter.increment()?;
     }
-    stdout.write_all(b"\n")?;
 
+    let n_solutions = sol_paths.len();
     let handle = thread::Builder::new()
         .spawn(move || check_unexpected_files("solutions", &sol_paths))
         .context(
             "Failed to spawn a thread to check for unexpected files in the solutions directory",
         )?;
 
-    if !fmt_cmd
-        .status()
-        .context("Failed to run `rustfmt` on all solution files")?
-        .success()
+    if n_solutions > 0
+        && !fmt_cmd
+            .status()
+            .context("Failed to run `rustfmt` on all solution files")?
+            .success()
     {
         bail!("Some solutions aren't formatted. Run `rustfmt` on them");
     }
@@ -379,7 +377,7 @@ pub fn check(require_solutions: bool) -> Result<()> {
     }
 
     if cfg!(debug_assertions) {
-        // A hack to make `cargo run -- dev check` work when developing Rustlings.
+        // A hack to make `cargo dev check` work when developing Rustlings.
         check_cargo_toml(&info_file.exercises, "dev/Cargo.toml", b"../")?;
     } else {
         check_cargo_toml(&info_file.exercises, "Cargo.toml", b"")?;
